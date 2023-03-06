@@ -5,7 +5,7 @@ import "./Owned.sol";
 
 // https://docs.synthetix.io/contracts/source/contracts/pausable
 contract Pausable is Owned {
-    uint public lastPauseTime;
+    uint256 public lastPauseTime;
     bool public paused;
 
     constructor() internal {
@@ -39,7 +39,10 @@ contract Pausable is Owned {
     event PauseChanged(bool isPaused);
 
     modifier notPaused {
-        require(!paused, "This action cannot be performed while the contract is paused");
+        require(
+            !paused,
+            "This action cannot be performed while the contract is paused"
+        );
         _;
     }
 }
