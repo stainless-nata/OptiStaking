@@ -29,6 +29,7 @@ contract StakingRewards is
     uint256 public rewardsDuration = 7 days;
     uint256 public lastUpdateTime;
     uint256 public rewardPerTokenStored;
+    address public zapContract;
 
     mapping(address => uint256) public userRewardPerTokenPaid;
     mapping(address => uint256) public rewards;
@@ -42,11 +43,13 @@ contract StakingRewards is
         address _owner,
         address _rewardsDistribution,
         address _rewardsToken,
-        address _stakingToken
+        address _stakingToken,
+        address _zapContract
     ) public Owned(_owner) {
         rewardsToken = IERC20(_rewardsToken);
         stakingToken = IERC20(_stakingToken);
         rewardsDistribution = _rewardsDistribution;
+        zapContract = _zapContract;
     }
 
     /* ========== VIEWS ========== */
@@ -102,6 +105,20 @@ contract StakingRewards is
         _balances[msg.sender] = _balances[msg.sender].add(amount);
         stakingToken.safeTransferFrom(msg.sender, address(this), amount);
         emit Staked(msg.sender, amount);
+    }
+
+    function stakeFor(address recipient, uint256 amount)
+        external
+        nonReentrant
+        notPaused
+        updateReward(recipient)
+    {
+        require(msg.sender == zapContract, "Only zap contract");
+        require(amount > 0, "Cannot stake 0");
+        _totalSupply = _totalSupply.add(amount);
+        _balances[recipient] = _balances[recipient].add(amount);
+        stakingToken.safeTransferFrom(msg.sender, address(this), amount);
+        emit StakedFor(recipient, amount);
     }
 
     function withdraw(uint256 amount)
@@ -183,6 +200,12 @@ contract StakingRewards is
         emit RewardsDurationUpdated(rewardsDuration);
     }
 
+    function setZapContract(address _zapContract) external onlyOwner {
+        require(_zapContract != address(0), "no zero address");
+        zapContract = _zapContract;
+        emit ZapContractUpdated(_zapContract);
+    }
+
     /* ========== MODIFIERS ========== */
 
     modifier updateReward(address account) {
@@ -199,8 +222,10 @@ contract StakingRewards is
 
     event RewardAdded(uint256 reward);
     event Staked(address indexed user, uint256 amount);
+    event StakedFor(address indexed user, uint256 amount);
     event Withdrawn(address indexed user, uint256 amount);
     event RewardPaid(address indexed user, uint256 reward);
     event RewardsDurationUpdated(uint256 newDuration);
+    event ZapContractUpdated(address _zapContract);
     event Recovered(address token, uint256 amount);
 }

@@ -1,7 +1,7 @@
 # use Ganache's forked mainnet mode as the default network
 # NOTE: You don't *have* to do this, but it is often helpful for testing
 networks:
-  default: mainnet-fork
+  default: optimism-yearn-fork
 
 # automatically fetch contract sources from Etherscan
 autofetch_sources: True
@@ -10,6 +10,7 @@ autofetch_sources: True
 dependencies:
   - yearn/yearn-vaults@0.4.3
   - OpenZeppelin/openzeppelin-contracts@2.3.0
+  - OpenZeppelin/openzeppelin-contracts@4.7.0
 
 # path remapping to support imports from GitHub/NPM
 compiler:
@@ -18,7 +19,15 @@ compiler:
     remappings:
       - "@yearnvaults=yearn/yearn-vaults@0.4.3"
       - "@openzeppelin=OpenZeppelin/openzeppelin-contracts@2.3.0"
+      - "@openzeppelin_new=OpenZeppelin/openzeppelin-contracts@4.7.0"
 
 reports:
   exclude_contracts:
+    - Owned
+    - Pausable
+    - RewardsDistributionRecipient
+    - IStakingRewards
     - SafeMath
+    - SafeERC20
+    - Ownable
+    - Address

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0
 pragma solidity ^0.8.15;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin_new/contracts/access/Ownable.sol";
 
 interface IStakingRewards {
     function stakingToken() external view returns (address);
@@ -34,7 +34,6 @@ contract StakingRewardsRegistry is Ownable {
     /* ========== EVENTS ========== */
 
     event StakingPoolAdded(address indexed token, address indexed stakingPool);
-
     event ApprovedPoolOwnerUpdated(address governance, bool approved);
     event ApprovedPoolEndorser(address account, bool canEndorse);
 
@@ -55,13 +54,13 @@ contract StakingRewardsRegistry is Ownable {
         Throws if sender isn't allowed to endorse.
         Throws if replacement is handled improperly.
         Emits a StakingPoolAdded event.
-    @param _token The token that may be deposited into the new staking pool.
-    @param _guardian The address of the new staking pool.
+    @param _stakingPool The address of the new staking pool.
+    @param _token The token to be deposited into the new staking pool.
     @param _replaceExistingPool If we are replacing an existing staking pool, set this to true.
      */
     function addStakingPool(
-        address _token,
         address _stakingPool,
+        address _token,
         bool _replaceExistingPool
     ) public {
         // don't let just anyone add to our registry
@@ -86,15 +85,15 @@ contract StakingRewardsRegistry is Ownable {
                 isRegistered[_token] == true,
                 "token isn't registered, can't replace"
             );
-            address oldPool = stakingPools[_token];
+            address oldPool = stakingPool[_token];
             isStakingPoolEndorsed[oldPool] = false;
-            stakingPools[_token] = _stakingPool;
+            stakingPool[_token] = _stakingPool;
         } else {
             require(
                 isRegistered[_token] == false,
                 "replace instead, pool already exists"
             );
-            stakingPools[_token].push(_stakingPool);
+            stakingPool[_token] = _stakingPool;
             isRegistered[_token] = true;
             tokens.push(_token);
         }
