@@ -5,6 +5,7 @@ __pycache__
 build/
 reports/
 .env
+.DS_Store
 
 # Node/npm
 node_modules/
