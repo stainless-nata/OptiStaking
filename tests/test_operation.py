@@ -22,7 +22,7 @@ def test_normal_deposit(
 ):
     # Approve and deposit to the staking contract
     yvdai_starting = yvdai.balanceOf(yvdai_whale)
-    yvdai.approve(yvdai_pool, 2**256 - 1, {"from": yvdai_whale})
+    yvdai.approve(yvdai_pool, 2 ** 256 - 1, {"from": yvdai_whale})
     yvdai_pool.stake(yvdai_amount, {"from": yvdai_whale})
     assert yvdai_pool.balanceOf(yvdai_whale) == yvdai_amount
 
@@ -43,6 +43,164 @@ def test_normal_deposit(
     # sleep to gain some earnings
     chain.sleep(86400)
     chain.mine(1)
+
+    # exit, check that we have the same principal and earned more rewards
+    yvdai_pool.exit({"from": yvdai_whale})
+    assert yvdai_starting == yvdai.balanceOf(yvdai_whale)
+    assert yvop.balanceOf(yvdai_whale) > earned
+
+
+def test_sweep_rewards(
+    chain,
+    accounts,
+    gov,
+    yvdai,
+    yvdai_amount,
+    yvdai_whale,
+    yvusdc,
+    yvusdc_amount,
+    yvusdc_whale,
+    yvop,
+    yvop_whale,
+    registry,
+    zap,
+    yvdai_pool,
+    yvusdc_pool,
+    dai,
+    dai_whale,
+):
+    # Approve and deposit to the staking contract
+    yvdai_starting = yvdai.balanceOf(yvdai_whale)
+    yvdai.approve(yvdai_pool, 2 ** 256 - 1, {"from": yvdai_whale})
+    yvdai_pool.stake(yvdai_amount, {"from": yvdai_whale})
+    assert yvdai_pool.balanceOf(yvdai_whale) == yvdai_amount
+
+    # whale sends directly to pool, gov notifies rewards
+    yvop.transfer(yvdai_pool, yvop.balanceOf(yvop_whale), {"from": yvop_whale})
+    yvdai_pool.notifyRewardAmount(100e18, {"from": gov})
+
+    # sleep to gain some earnings
+    chain.sleep(86400)
+    chain.mine(1)
+
+    # check claimable earnings, get reward
+    earned = yvdai_pool.earned(yvdai_whale)
+    assert earned > 0
+    yvdai_pool.getReward({"from": yvdai_whale})
+    claimed = yvop.balanceOf(yvdai_whale)
+
+    # do >= since we (sometimes?) get extra in the block it takes to harvest
+    assert claimed >= earned
+    print("Earned:", earned / 1e18, "Claimed:", claimed / 1e18)
+
+    # check that we can't sweep out yvOP
+    with brownie.reverts():
+        yvdai_pool.recoverERC20(yvdai_pool.rewardsToken(), 10e18, {"from": gov})
+
+    # we can sweep out DAI tho
+    dai.transfer(yvdai_pool, 100e18, {"from": dai_whale})
+    assert dai.balanceOf(yvdai_pool) > 0
+    yvdai_pool.recoverERC20(dai, 100e18, {"from": gov})
+    assert dai.balanceOf(yvdai_pool) == 0
+
+    # sleep 91 days so we can sweep out rewards
+    chain.sleep(86400 * 100)
+    chain.mine(1)
+    earned = yvdai_pool.earned(yvdai_whale)
+    assert earned > 0
+    assert yvop.balanceOf(yvdai_pool) > 0
+
+    # amount doesn't matter since we auto-sweep all rewards token
+    yvdai_pool.recoverERC20(yvdai_pool.rewardsToken(), 10e18, {"from": gov})
+    assert yvop.balanceOf(yvdai_pool) == 0
+
+    # check our earned, should be zeroed
+    earned = yvdai_pool.earned(yvdai_whale)
+    assert earned == 0
+    assert yvdai_pool.rewardPerToken() == 0
+    assert yvdai_pool.rewards(yvdai_whale) == 0
+
+    # we lose some precision here for some reason, so divide by 1e3 ****** FIGURE OUT WHY WE LOSE PRECISION HERE!!!!!
+    assert yvdai_pool.userRewardPerTokenPaid(yvdai_whale) * 1000 == claimed
+
+    # make sure our whale can still withdraw
+    yvdai_pool.exit({"from": yvdai_whale})
+    assert yvdai_starting == yvdai.balanceOf(yvdai_whale)
+    assert yvop.balanceOf(yvdai_whale) > 0
+    assert yvdai_pool.userRewardPerTokenPaid(yvdai_whale) == 0
+
+
+def test_extend_rewards(
+    chain,
+    accounts,
+    gov,
+    yvdai,
+    yvdai_amount,
+    yvdai_whale,
+    yvusdc,
+    yvusdc_amount,
+    yvusdc_whale,
+    yvop,
+    yvop_whale,
+    registry,
+    zap,
+    yvdai_pool,
+    yvusdc_pool,
+):
+    # Approve and deposit to the staking contract
+    yvdai_starting = yvdai.balanceOf(yvdai_whale)
+    yvdai.approve(yvdai_pool, 2 ** 256 - 1, {"from": yvdai_whale})
+    yvdai_pool.stake(yvdai_amount, {"from": yvdai_whale})
+    assert yvdai_pool.balanceOf(yvdai_whale) == yvdai_amount
+
+    # whale sends directly to pool, gov notifies rewards
+    yvop.transfer(yvdai_pool, yvop.balanceOf(yvop_whale), {"from": yvop_whale})
+    yvdai_pool.notifyRewardAmount(100e18, {"from": gov})
+
+    # sleep to gain some earnings
+    chain.sleep(86400)
+    chain.mine(1)
+
+    # check claimable earnings, get reward
+    earned = yvdai_pool.earned(yvdai_whale)
+    assert earned > 0
+    yvdai_pool.getReward({"from": yvdai_whale})
+    claimed = yvop.balanceOf(yvdai_whale)
+    assert yvop.balanceOf(yvdai_whale) >= earned
+    assert yvdai_pool.earned(yvdai_whale) == 0
+
+    # do >= since we (sometimes?) get extra in the block it takes to harvest
+    assert claimed >= earned
+    print("Earned:", earned / 1e18, "Claimed:", claimed / 1e18)
+
+    # sleep to gain some earnings
+    chain.sleep(86400)
+    chain.mine(1)
+
+    # check claimable earnings again
+    earned = yvdai_pool.earned(yvdai_whale)
+    assert earned > 0
+    print("Earned:", earned / 1e18)
+
+    # add more rewards
+    yvop.transfer(yvdai_pool, yvop.balanceOf(yvop_whale), {"from": yvop_whale})
+    yvdai_pool.notifyRewardAmount(100e18, {"from": gov})
+
+    # check claimable earnings, make sure we have at least as much as before
+    new_earned = yvdai_pool.earned(yvdai_whale)
+    assert new_earned >= earned
+    print("New Earned after notify:", new_earned / 1e18)
+
+    # sleep to gain some earnings
+    chain.sleep(86400)
+    chain.mine(1)
+
+    # check claimable earnings, make sure we have more than before
+    new_earned = yvdai_pool.earned(yvdai_whale)
+    before_balance = yvop.balanceOf(yvdai_whale)
+    yvdai_pool.getReward({"from": yvdai_whale})
+    assert yvop.balanceOf(yvdai_whale) - before_balance >= earned
+    print("New Earned after sleep:", new_earned / 1e18)
 
     # exit, check that we have the same principal and earned more rewards
     yvdai_pool.exit({"from": yvdai_whale})
@@ -73,7 +231,7 @@ def test_zap(
 ):
     # Approve and zap into to the staking contract
     dai_starting = dai.balanceOf(dai_whale)
-    dai.approve(zap, 2**256 - 1, {"from": dai_whale})
+    dai.approve(zap, 2 ** 256 - 1, {"from": dai_whale})
 
     # can't deposit into a contract that isn't in our registry
     with brownie.reverts():
@@ -126,7 +284,7 @@ def test_zap(
     assert yvop.balanceOf(dai_whale) > earned
 
     # check that no one else can use stakeFor (even gov!)
-    yvdai.approve(yvdai_pool, 2**256 - 1, {"from": gov})
+    yvdai.approve(yvdai_pool, 2 ** 256 - 1, {"from": gov})
     yvdai.transfer(gov, 100e18, {"from": yvdai_whale})
     with brownie.reverts():
         yvdai_pool.stakeFor(gov, 100e18, {"from": gov})

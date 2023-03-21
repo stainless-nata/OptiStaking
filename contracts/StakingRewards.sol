@@ -31,6 +31,7 @@ contract StakingRewards is
     uint256 public lastUpdateTime;
     uint256 public rewardPerTokenStored;
     address public zapContract;
+    bool public isRetired;
 
     mapping(address => uint256) public userRewardPerTokenPaid;
     mapping(address => uint256) public rewards;
@@ -71,6 +72,11 @@ contract StakingRewards is
         if (_totalSupply == 0) {
             return rewardPerTokenStored;
         }
+
+        if (isRetired) {
+            return 0;
+        }
+
         return
             rewardPerTokenStored.add(
                 lastTimeRewardApplicable()
@@ -82,6 +88,10 @@ contract StakingRewards is
     }
 
     function earned(address account) public view returns (uint256) {
+        if (isRetired) {
+            return 0;
+        }
+
         return
             _balances[account]
                 .mul(rewardPerToken().sub(userRewardPerTokenPaid[account]))
@@ -188,6 +198,21 @@ contract StakingRewards is
             tokenAddress != address(stakingToken),
             "Cannot withdraw the staking token"
         );
+
+        // can only recover rewardsToken 90 days after end
+        if (tokenAddress == address(rewardsToken)) {
+            require(
+                block.timestamp > periodFinish + 90 days,
+                "wait 90 days to sweep leftover rewards"
+            );
+
+            // if we do this, automatically sweep all rewardsToken
+            tokenAmount = rewardsToken.balanceOf(address(this));
+
+            // retire this staking contract, this wipes all rewards but still allows all users to withdraw
+            isRetired = true;
+        }
+
         IERC20(tokenAddress).safeTransfer(owner, tokenAmount);
         emit Recovered(tokenAddress, tokenAmount);
     }
