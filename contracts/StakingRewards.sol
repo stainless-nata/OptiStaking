@@ -105,6 +105,9 @@ contract StakingRewards is
 
     /* ========== MUTATIVE FUNCTIONS ========== */
 
+    /// @notice Deposit vault tokens to the staking pool.
+    /// @dev Can't stake zero.
+    /// @param amount Amount of vault tokens to deposit.
     function stake(uint256 amount)
         external
         nonReentrant
@@ -118,6 +121,10 @@ contract StakingRewards is
         emit Staked(msg.sender, amount);
     }
 
+    /// @notice Deposit vault tokens for specified recipient.
+    /// @dev Can't stake zero, can only be used by zap contract.
+    /// @param recipient Address of user these vault tokens are being staked for.
+    /// @param amount Amount of vault token to deposit.
     function stakeFor(address recipient, uint256 amount)
         external
         nonReentrant
@@ -132,6 +139,9 @@ contract StakingRewards is
         emit StakedFor(recipient, amount);
     }
 
+    /// @notice Withdraw vault tokens from the staking pool.
+    /// @dev Can't withdraw zero. If trying to claim, call getReward() instead.
+    /// @param amount Amount of vault tokens to withdraw.
     function withdraw(uint256 amount)
         public
         nonReentrant
@@ -144,6 +154,8 @@ contract StakingRewards is
         emit Withdrawn(msg.sender, amount);
     }
 
+    /// @notice Claim any earned reward tokens.
+    /// @dev Can claim rewards even if no tokens still staked.
     function getReward() public nonReentrant updateReward(msg.sender) {
         uint256 reward = rewards[msg.sender];
         if (reward > 0) {
@@ -161,6 +173,10 @@ contract StakingRewards is
 
     /* ========== RESTRICTED FUNCTIONS ========== */
 
+    /// @notice Notify staking contract that it has more reward to account for.
+    /// @dev Reward tokens must be sent to contract before notifying. May only be called
+    ///  by rewards distribution role.
+    /// @param reward Amount of reward tokens to add.
     function notifyRewardAmount(uint256 reward)
         external
         onlyRewardsDistribution
@@ -189,7 +205,10 @@ contract StakingRewards is
         emit RewardAdded(reward);
     }
 
-    // Added to support recovering LP Rewards from other systems such as BAL to be distributed to holders
+    /// @notice Sweep out tokens accidentally sent here.
+    /// @dev May only be called by owner.
+    /// @param tokenAddress Address of token to sweep.
+    /// @param tokenAmount Amount of tokens to sweep.
     function recoverERC20(address tokenAddress, uint256 tokenAmount)
         external
         onlyOwner

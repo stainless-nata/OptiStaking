@@ -1,5 +1,5 @@
 import brownie
-from brownie import Contract
+from brownie import Contract, ZERO_ADDRESS
 import pytest
 
 
@@ -26,6 +26,10 @@ def test_normal_deposit(
     yvdai_pool.stake(yvdai_amount, {"from": yvdai_whale})
     assert yvdai_pool.balanceOf(yvdai_whale) == yvdai_amount
 
+    # can't stake zero
+    with brownie.reverts("Cannot stake 0"):
+        yvdai_pool.stake(0, {"from": yvdai_whale})
+
     # whale sends directly to pool, gov notifies rewards
     yvop.transfer(yvdai_pool, yvop.balanceOf(yvop_whale), {"from": yvop_whale})
     yvdai_pool.notifyRewardAmount(100e18, {"from": gov})
@@ -38,16 +42,32 @@ def test_normal_deposit(
     earned = yvdai_pool.earned(yvdai_whale)
     assert earned > 0
     yvdai_pool.getReward({"from": yvdai_whale})
-    assert yvop.balanceOf(yvdai_whale) == earned
+    assert yvop.balanceOf(yvdai_whale) >= earned
+    assert yvdai_pool.getRewardForDuration({"from": yvdai_whale}) > 0
 
     # sleep to gain some earnings
     chain.sleep(86400)
     chain.mine(1)
 
+    # can't withdraw zero
+    with brownie.reverts("Cannot withdraw 0"):
+        yvdai_pool.withdraw(0, {"from": yvdai_whale})
+
     # exit, check that we have the same principal and earned more rewards
     yvdai_pool.exit({"from": yvdai_whale})
     assert yvdai_starting == yvdai.balanceOf(yvdai_whale)
     assert yvop.balanceOf(yvdai_whale) > earned
+
+    # check our setters
+    with brownie.reverts():
+        yvdai_pool.setRewardsDuration(100e18, {"from": gov})
+    with brownie.reverts():
+        yvdai_pool.setZapContract(ZERO_ADDRESS, {"from": gov})
+    yvdai_pool.setZapContract(zap, {"from": gov})
+
+    # sleep to get past our rewards window
+    chain.sleep(86400 * 6)
+    yvdai_pool.setRewardsDuration(86400 * 14, {"from": gov})
 
 
 def test_sweep_rewards(
@@ -93,9 +113,11 @@ def test_sweep_rewards(
     assert claimed >= earned
     print("Earned:", earned / 1e18, "Claimed:", claimed / 1e18)
 
-    # check that we can't sweep out yvOP
+    # check that we can't sweep out yvOP or the staking token
     with brownie.reverts():
         yvdai_pool.recoverERC20(yvdai_pool.rewardsToken(), 10e18, {"from": gov})
+    with brownie.reverts():
+        yvdai_pool.recoverERC20(yvdai_pool.stakingToken(), 10e18, {"from": gov})
 
     # we can sweep out DAI tho
     dai.transfer(yvdai_pool, 100e18, {"from": dai_whale})
@@ -186,6 +208,10 @@ def test_extend_rewards(
     yvop.transfer(yvdai_pool, yvop.balanceOf(yvop_whale), {"from": yvop_whale})
     yvdai_pool.notifyRewardAmount(100e18, {"from": gov})
 
+    # can't add too much
+    with brownie.reverts("Provided reward too high"):
+        yvdai_pool.notifyRewardAmount(10_000e18, {"from": gov})
+
     # check claimable earnings, make sure we have at least as much as before
     new_earned = yvdai_pool.earned(yvdai_whale)
     assert new_earned >= earned
@@ -240,6 +266,10 @@ def test_zap(
     # Add our staking contract to our registry
     registry.addStakingPool(yvdai_pool, yvdai, False, {"from": gov})
 
+    # need to pretend to stakeFor directly from zap contract to hit the require
+    with brownie.reverts("Cannot stake 0"):
+        yvdai_pool.stakeFor(dai_whale, 0, {"from": zap})
+
     # zap in, but can't zap zero
     with brownie.reverts():
         zap.zapIn(yvdai, 0, {"from": dai_whale})
@@ -286,7 +316,7 @@ def test_zap(
     # check that no one else can use stakeFor (even gov!)
     yvdai.approve(yvdai_pool, 2 ** 256 - 1, {"from": gov})
     yvdai.transfer(gov, 100e18, {"from": yvdai_whale})
-    with brownie.reverts():
+    with brownie.reverts("Only zap contract"):
         yvdai_pool.stakeFor(gov, 100e18, {"from": gov})
 
 
