@@ -3,7 +3,6 @@ pragma solidity ^0.8.15;
 
 import "@openzeppelin_new/contracts/access/Ownable.sol";
 import "@openzeppelin_new/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin_new/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin_new/contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface IVault is IERC20 {

@@ -263,6 +263,10 @@ def test_zap(
     with brownie.reverts():
         zap.zapIn(yvdai, dai_amount, {"from": dai_whale})
 
+    # can't zap into zero address
+    with brownie.reverts():
+        zap.zapIn(ZERO_ADDRESS, dai_amount, {"from": dai_whale})
+
     # Add our staking contract to our registry
     registry.addStakingPool(yvdai_pool, yvdai, False, {"from": gov})
 
@@ -318,6 +322,11 @@ def test_zap(
     yvdai.transfer(gov, 100e18, {"from": yvdai_whale})
     with brownie.reverts("Only zap contract"):
         yvdai_pool.stakeFor(gov, 100e18, {"from": gov})
+
+    # zero address for registry will revert on zap in
+    zap.setPoolRegistry(ZERO_ADDRESS, {"from": gov})
+    with brownie.reverts():
+        zap.zapIn(yvdai, dai_amount, {"from": dai_whale})
 
 
 def test_registry(
@@ -395,6 +404,13 @@ def test_registry(
 
     with brownie.reverts():
         registry.addStakingPool(yvdai_pool_three, yvdai, True, {"from": gov})
+
+    # zero address reverts
+    with brownie.reverts():
+        registry.addStakingPool(ZERO_ADDRESS, yvdai, True, {"from": gov})
+
+    with brownie.reverts():
+        registry.addStakingPool(yvdai_pool_three, ZERO_ADDRESS, True, {"from": gov})
 
     # check our endorsing is working properly
     assert registry.isStakingPoolEndorsed(yvdai_pool_three) == False
