@@ -53,7 +53,7 @@ def yvdai():
 
 @pytest.fixture
 def yvdai_amount(yvdai):
-    yvdai_amount = 1_000 * 10 ** yvdai.decimals()
+    yvdai_amount = 100 * 10 ** yvdai.decimals()
     yield yvdai_amount
 
 
@@ -150,6 +150,19 @@ def yvdai_pool(StakingRewards, gov, registry, yvdai, yvop, zap):
         zap.address,
     )
     yield yvdai_pool
+
+
+# @pytest.fixture
+# def yvdai_pool_clonable(StakingRewardsClonable, gov, registry, yvdai, yvop, zap):
+#     yvdai_pool_clonable = gov.deploy(
+#         StakingRewardsClonable,
+#         gov.address,
+#         gov.address,
+#         yvop.address,
+#         yvdai.address,
+#         zap.address,
+#     )
+#     yield yvdai_pool_clonable
 
 
 @pytest.fixture

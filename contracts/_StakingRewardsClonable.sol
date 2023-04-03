@@ -12,7 +12,7 @@ import "./RewardsDistributionRecipient.sol";
 import "./Pausable.sol";
 
 // https://docs.synthetix.io/contracts/source/contracts/stakingrewards
-contract StakingRewards is
+contract StakingRewardsClonable is
     IStakingRewards,
     RewardsDistributionRecipient,
     ReentrancyGuard,
@@ -23,46 +23,24 @@ contract StakingRewards is
 
     /* ========== STATE VARIABLES ========== */
 
-    /// @notice The address of our rewards token.
     IERC20 public rewardsToken;
-
-    /// @notice The address of our staking token.
     IERC20 public stakingToken;
-
-    /// @notice The end (timestamp) of our current or most recent reward period.
     uint256 public periodFinish = 0;
-
-    /// @notice The distribution rate of rewardsToken per second.
     uint256 public rewardRate = 0;
-
-    /// @notice The duration of our rewards distribution for staking, default is 7 days.
-    uint256 public rewardsDuration = 7 days;
-
-    /// @notice The last time rewards were updated, triggered by updateReward() or notifyRewardAmount().
-    /// @dev Will be the timestamp of the update or the end of the period, whichever is earlier.
+    uint256 public rewardsDuration;
     uint256 public lastUpdateTime;
-
-    /// @notice The most recent stored amount for rewardPerToken().
-    /// @dev Updated every time anyone calls the updateReward() modifier.
     uint256 public rewardPerTokenStored;
-
-    /// @notice The address of our zap contract, allows depositing to vault and staking in one transaction.
     address public zapContract;
-
-    /// @notice Bool for if this staking contract is shut down and rewards have been swept out.
-    /// @dev Can only be performed at least 90 days after final reward period ends.
     bool public isRetired;
 
-    /// @notice The amount of rewards allocated to a user per whole token staked.
-    /// @dev Note that this is not the same as amount of rewards claimed.
     mapping(address => uint256) public userRewardPerTokenPaid;
-
-    /// @notice The amount of unclaimed rewards an account is owed.
     mapping(address => uint256) public rewards;
 
-    // private vars, use view functions to see these
     uint256 private _totalSupply;
     mapping(address => uint256) private _balances;
+
+    /// @notice Will only be true on the original deployed contract and not on clones; we don't want to clone a clone.
+    bool public isOriginal = true;
 
     /* ========== CONSTRUCTOR ========== */
 
@@ -73,30 +51,120 @@ contract StakingRewards is
         address _stakingToken,
         address _zapContract
     ) public Owned(_owner) {
+        _initializePool(
+            _rewardsDistribution,
+            _rewardsToken,
+            _stakingToken,
+            _zapContract
+        );
+    }
+
+    /* ========== CLONING ========== */
+
+    event Cloned(address indexed clone);
+
+    /// @notice Use this to clone an exact copy of this staking pool.
+    /// @dev Note that owner will have to call acceptOwnership() to assume ownership of the new staking pool.
+    /// @param _owner Owner of the new staking contract.
+    /// @param _rewardsDistribution Only this address can call notifyRewardAmount, to add more rewards.
+    /// @param _rewardsToken Address of our rewards token.
+    /// @param _stakingToken Address of our staking token.
+    /// @param _zapContract Address of our zap contract.
+    function cloneStakingPool(
+        address _owner,
+        address _rewardsDistribution,
+        address _rewardsToken,
+        address _stakingToken,
+        address _zapContract
+    ) external returns (address newStakingPool) {
+        // don't clone a clone
+        if (!isOriginal) {
+            revert();
+        }
+
+        // Copied from https://github.com/optionality/clone-factory/blob/master/contracts/CloneFactory.sol
+        bytes20 addressBytes = bytes20(address(this));
+        assembly {
+            // EIP-1167 bytecode
+            let clone_code := mload(0x40)
+            mstore(
+                clone_code,
+                0x3d602d80600a3d3981f3363d3d373d3d3d363d73000000000000000000000000
+            )
+            mstore(add(clone_code, 0x14), addressBytes)
+            mstore(
+                add(clone_code, 0x28),
+                0x5af43d82803e903d91602b57fd5bf30000000000000000000000000000000000
+            )
+            newStakingPool := create(0, clone_code, 0x37)
+        }
+
+        StakingRewardsClonable(newStakingPool).initialize(
+            _rewardsDistribution,
+            _rewardsToken,
+            _stakingToken,
+            _zapContract
+        );
+
+        emit Cloned(newStakingPool);
+    }
+
+    /// @notice Initialize the staking pool.
+    /// @dev This should only be called by the clone function above.
+    /// @param _rewardsDistribution Only this address can call notifyRewardAmount, to add more rewards.
+    /// @param _rewardsToken Address of our rewards token.
+    /// @param _stakingToken Address of our staking token.
+    /// @param _zapContract Address of our zap contract.
+    function initialize(
+        address _rewardsDistribution,
+        address _rewardsToken,
+        address _stakingToken,
+        address _zapContract
+    ) public {
+        _initializePool(
+            _rewardsDistribution,
+            _rewardsToken,
+            _stakingToken,
+            _zapContract
+        );
+    }
+
+    // this is called by our original staking pool, as well as any clones via the above function
+    function _initializePool(
+        address _rewardsDistribution,
+        address _rewardsToken,
+        address _stakingToken,
+        address _zapContract
+    ) internal {
+        // make sure that we haven't initialized this before
+        if (address(rewardsToken) != address(0)) {
+            revert(); // already initialized.
+        }
+
+        // set up our state vars
         rewardsToken = IERC20(_rewardsToken);
         stakingToken = IERC20(_stakingToken);
         rewardsDistribution = _rewardsDistribution;
         zapContract = _zapContract;
+
+        // default duration to 7 days
+        rewardsDuration = 7 days;
     }
 
     /* ========== VIEWS ========== */
 
-    /// @notice The total tokens staked in this contract.
     function totalSupply() external view returns (uint256) {
         return _totalSupply;
     }
 
-    /// @notice The balance a given user has staked.
     function balanceOf(address account) external view returns (uint256) {
         return _balances[account];
     }
 
-    /// @notice Either the current timestamp or end of the most recent period.
     function lastTimeRewardApplicable() public view returns (uint256) {
         return block.timestamp < periodFinish ? block.timestamp : periodFinish;
     }
 
-    /// @notice Reward paid out per whole token.
     function rewardPerToken() public view returns (uint256) {
         if (_totalSupply == 0) {
             return rewardPerTokenStored;
@@ -116,7 +184,6 @@ contract StakingRewards is
             );
     }
 
-    /// @notice Amount of reward token pending claim by an account.
     function earned(address account) public view returns (uint256) {
         if (isRetired) {
             return 0;
@@ -129,7 +196,6 @@ contract StakingRewards is
                 .add(rewards[account]);
     }
 
-    /// @notice Reward tokens emitted over the entire rewardsDuration.
     function getRewardForDuration() external view returns (uint256) {
         return rewardRate.mul(rewardsDuration);
     }
@@ -269,9 +335,6 @@ contract StakingRewards is
         emit Recovered(tokenAddress, tokenAmount);
     }
 
-    /// @notice Set the duration of our rewards period.
-    /// @dev May only be called by owner, and must be done after most recent period ends.
-    /// @param _rewardsDuration New length of period in seconds.
     function setRewardsDuration(uint256 _rewardsDuration) external onlyOwner {
         require(
             block.timestamp > periodFinish,
@@ -281,9 +344,6 @@ contract StakingRewards is
         emit RewardsDurationUpdated(rewardsDuration);
     }
 
-    /// @notice Set our zap contract.
-    /// @dev May only be called by owner, and can't be set to zero address.
-    /// @param _zapContract Address of the new zap contract.
     function setZapContract(address _zapContract) external onlyOwner {
         require(_zapContract != address(0), "no zero address");
         zapContract = _zapContract;

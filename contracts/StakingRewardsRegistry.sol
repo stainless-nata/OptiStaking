@@ -62,7 +62,7 @@ contract StakingRewardsRegistry is Ownable {
         address _stakingPool,
         address _token,
         bool _replaceExistingPool
-    ) public {
+    ) external {
         // don't let just anyone add to our registry
         require(poolEndorsers[msg.sender], "unauthorized");
 

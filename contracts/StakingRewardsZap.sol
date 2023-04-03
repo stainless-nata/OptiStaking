@@ -50,6 +50,14 @@ contract StakingRewardsZap is Ownable {
         external
         returns (uint256)
     {
+        // get our staking pool from our registry for this vault token
+        IRegistry poolRegistry = IRegistry(stakingPoolRegistry);
+
+        // check what our address is, make sure it's not zero
+        address _vaultStakingPool = poolRegistry.stakingPool(_targetVault);
+        require(_vaultStakingPool != address(0), "staking pool doesn't exist");
+        IStakingRewards vaultStakingPool = IStakingRewards(_vaultStakingPool);
+
         // get our underlying token
         IVault targetVault = IVault(_targetVault);
         IERC20 underlying = IERC20(targetVault.token());
@@ -61,14 +69,6 @@ contract StakingRewardsZap is Ownable {
 
         // read staking contract from registry, then deposit to that staking contract
         uint256 toStake = targetVault.balanceOf(address(this));
-
-        // get our staking pool from our registry for this vault token
-        IRegistry poolRegistry = IRegistry(stakingPoolRegistry);
-
-        // check what our address is, make sure it's not zero
-        address _vaultStakingPool = poolRegistry.stakingPool(_targetVault);
-        require(_vaultStakingPool != address(0), "staking pool doesn't exist");
-        IStakingRewards vaultStakingPool = IStakingRewards(_vaultStakingPool);
 
         // make sure we have approved the staking pool, as they can be added/updated at any time
         _checkAllowance(_vaultStakingPool, _targetVault, toStake);

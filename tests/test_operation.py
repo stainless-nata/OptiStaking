@@ -1,11 +1,9 @@
 import brownie
-from brownie import Contract, ZERO_ADDRESS
+from brownie import ZERO_ADDRESS, chain, interface
 import pytest
 
 
 def test_normal_deposit(
-    chain,
-    accounts,
     gov,
     yvdai,
     yvdai_amount,
@@ -70,9 +68,7 @@ def test_normal_deposit(
     yvdai_pool.setRewardsDuration(86400 * 14, {"from": gov})
 
 
-def test_sweep_rewards(
-    chain,
-    accounts,
+def test_insanity(
     gov,
     yvdai,
     yvdai_amount,
@@ -88,6 +84,114 @@ def test_sweep_rewards(
     yvusdc_pool,
     dai,
     dai_whale,
+    dai_amount,
+):
+    # Approve and deposit to the staking contract
+    yvdai_starting = yvdai.balanceOf(yvdai_whale)
+    yvdai.approve(yvdai_pool, 2 ** 256 - 1, {"from": yvdai_whale})
+    yvdai_pool.stake(yvdai_amount, {"from": yvdai_whale})
+    assert yvdai_pool.balanceOf(yvdai_whale) == yvdai_amount
+
+    # whale sends directly to pool, gov notifies rewards
+    yvop.transfer(yvdai_pool, yvop.balanceOf(yvop_whale), {"from": yvop_whale})
+    yvdai_pool.notifyRewardAmount(100e18, {"from": gov})
+
+    # make sure we start with nothing
+    assert yvop.balanceOf(yvdai_whale) == 0
+
+    # sleep to gain some earnings
+    chain.sleep(86400)
+    chain.mine(1)
+
+    # check claimable earnings, get reward
+    earned = yvdai_pool.earned(yvdai_whale)
+    assert earned > 0
+    assert yvdai_pool.userRewardPerTokenPaid(yvdai_whale) == 0
+
+    # rewardPerToken() was last calculated here
+    print("\nReward per token before getReward call:", yvdai_pool.rewardPerToken())
+    print("rewardPerTokenStored:", yvdai_pool.rewardPerTokenStored())
+    print("userRewardPerTokenPaid:", yvdai_pool.userRewardPerTokenPaid(yvdai_whale))
+    print("lastTimeRewardApplicable:", yvdai_pool.lastTimeRewardApplicable())
+    print("lastUpdateTime:", yvdai_pool.lastUpdateTime())
+    print("rewardRate:", yvdai_pool.rewardRate())
+    print("_totalSupply:", yvdai_pool.totalSupply())
+    print("Earned:", yvdai_pool.earned(yvdai_whale))
+    print("rewards:", yvdai_pool.rewards(yvdai_whale))
+
+    yvdai_pool.getReward({"from": yvdai_whale})
+
+    print("\nReward per token after getReward:", yvdai_pool.rewardPerToken())
+    print("rewardPerTokenStored:", yvdai_pool.rewardPerTokenStored())
+    print("userRewardPerTokenPaid:", yvdai_pool.userRewardPerTokenPaid(yvdai_whale))
+    print("lastTimeRewardApplicable:", yvdai_pool.lastTimeRewardApplicable())
+    print("lastUpdateTime:", yvdai_pool.lastUpdateTime())
+    print("rewardRate:", yvdai_pool.rewardRate())
+    print("_totalSupply:", yvdai_pool.totalSupply())
+    print("Earned:", yvdai_pool.earned(yvdai_whale))
+    print("rewards:", yvdai_pool.rewards(yvdai_whale))
+
+    claimed = yvop.balanceOf(yvdai_whale)
+    print("Claimed:", claimed)
+    staking_token = interface.IERC20(yvdai_pool.stakingToken())
+    reward_per_token = yvdai_pool.userRewardPerTokenPaid(yvdai_whale)
+    tokens = int(yvdai_pool.balanceOf(yvdai_whale) / (10 ** staking_token.decimals()))
+    answer = reward_per_token * tokens
+    assert answer == claimed
+
+    # sleep to gain some earnings
+    chain.sleep(86400)
+    chain.mine(1)
+
+    print("\nReward per token after sleeping for a day:", yvdai_pool.rewardPerToken())
+    print("rewardPerTokenStored:", yvdai_pool.rewardPerTokenStored())
+    print("userRewardPerTokenPaid:", yvdai_pool.userRewardPerTokenPaid(yvdai_whale))
+    print("lastTimeRewardApplicable:", yvdai_pool.lastTimeRewardApplicable())
+    print("lastUpdateTime:", yvdai_pool.lastUpdateTime())
+    print("rewardRate:", yvdai_pool.rewardRate())
+    print("_totalSupply:", yvdai_pool.totalSupply())
+    print("Earned:", yvdai_pool.earned(yvdai_whale))
+    print("rewards:", yvdai_pool.rewards(yvdai_whale))
+
+    yvdai_pool.getReward({"from": yvdai_whale})
+
+    print("\nReward per token after getReward:", yvdai_pool.rewardPerToken())
+    print("rewardPerTokenStored:", yvdai_pool.rewardPerTokenStored())
+    print("userRewardPerTokenPaid:", yvdai_pool.userRewardPerTokenPaid(yvdai_whale))
+    print("lastTimeRewardApplicable:", yvdai_pool.lastTimeRewardApplicable())
+    print("lastUpdateTime:", yvdai_pool.lastUpdateTime())
+    print("rewardRate:", yvdai_pool.rewardRate())
+    print("_totalSupply:", yvdai_pool.totalSupply())
+    print("Earned:", yvdai_pool.earned(yvdai_whale))
+    print("rewards:", yvdai_pool.rewards(yvdai_whale))
+
+    # this hasn't been reset to zero yet
+    claimed = yvop.balanceOf(yvdai_whale)
+    print("Claimed:", claimed)
+    staking_token = interface.IERC20(yvdai_pool.stakingToken())
+    reward_per_token = yvdai_pool.userRewardPerTokenPaid(yvdai_whale)
+    tokens = int(yvdai_pool.balanceOf(yvdai_whale) / (10 ** staking_token.decimals()))
+    answer = reward_per_token * tokens
+    assert answer == claimed
+
+
+def test_sweep_rewards(
+    gov,
+    yvdai,
+    yvdai_amount,
+    yvdai_whale,
+    yvusdc,
+    yvusdc_amount,
+    yvusdc_whale,
+    yvop,
+    yvop_whale,
+    registry,
+    zap,
+    yvdai_pool,
+    yvusdc_pool,
+    dai,
+    dai_whale,
+    dai_amount,
 ):
     # Approve and deposit to the staking contract
     yvdai_starting = yvdai.balanceOf(yvdai_whale)
@@ -136,14 +240,27 @@ def test_sweep_rewards(
     yvdai_pool.recoverERC20(yvdai_pool.rewardsToken(), 10e18, {"from": gov})
     assert yvop.balanceOf(yvdai_pool) == 0
 
+    # this hasn't been reset to zero yet. multiply by amount of whole tokens we have
+    staking_token = interface.IERC20(yvdai_pool.stakingToken())
+    reward_per_token = yvdai_pool.userRewardPerTokenPaid(yvdai_whale)
+    tokens = int(yvdai_pool.balanceOf(yvdai_whale) / (10 ** staking_token.decimals()))
+    answer = reward_per_token * tokens
+    assert answer == claimed
+
     # check our earned, should be zeroed
     earned = yvdai_pool.earned(yvdai_whale)
     assert earned == 0
     assert yvdai_pool.rewardPerToken() == 0
     assert yvdai_pool.rewards(yvdai_whale) == 0
 
-    # we lose some precision here for some reason, so divide by 1e3 ****** FIGURE OUT WHY WE LOSE PRECISION HERE!!!!!
-    assert yvdai_pool.userRewardPerTokenPaid(yvdai_whale) * 1000 == claimed
+    # make sure we can get rewards and nothing happens
+    before = yvop.balanceOf(yvdai_whale)
+    yvdai_pool.getReward({"from": yvdai_whale})
+    after = yvop.balanceOf(yvdai_whale)
+    assert before == after
+
+    # now this should be zero since we called updateReward when calling getReward
+    assert yvdai_pool.userRewardPerTokenPaid(yvdai_whale) == 0
 
     # make sure our whale can still withdraw
     yvdai_pool.exit({"from": yvdai_whale})
@@ -151,10 +268,16 @@ def test_sweep_rewards(
     assert yvop.balanceOf(yvdai_whale) > 0
     assert yvdai_pool.userRewardPerTokenPaid(yvdai_whale) == 0
 
+    # check that we can't stake or zap in
+    with brownie.reverts("Staking pool is retired"):
+        yvdai_pool.stake(yvdai_amount, {"from": yvdai_whale})
+    registry.addStakingPool(yvdai_pool, yvdai, False, {"from": gov})
+    dai.approve(zap, 2 ** 256 - 1, {"from": dai_whale})
+    with brownie.reverts("Staking pool is retired"):
+        zap.zapIn(yvdai, dai_amount, {"from": dai_whale})
+
 
 def test_extend_rewards(
-    chain,
-    accounts,
     gov,
     yvdai,
     yvdai_amount,
@@ -235,8 +358,6 @@ def test_extend_rewards(
 
 
 def test_zap(
-    chain,
-    accounts,
     gov,
     yvdai,
     yvdai_amount,
@@ -260,10 +381,10 @@ def test_zap(
     dai.approve(zap, 2 ** 256 - 1, {"from": dai_whale})
 
     # can't deposit into a contract that isn't in our registry
-    with brownie.reverts():
+    with brownie.reverts("staking pool doesn't exist"):
         zap.zapIn(yvdai, dai_amount, {"from": dai_whale})
 
-    # can't zap into zero address
+    # can't zap into zero address (vault deposit() step will fail)
     with brownie.reverts():
         zap.zapIn(ZERO_ADDRESS, dai_amount, {"from": dai_whale})
 
@@ -330,8 +451,6 @@ def test_zap(
 
 
 def test_registry(
-    chain,
-    accounts,
     gov,
     yvdai,
     yvdai_amount,
