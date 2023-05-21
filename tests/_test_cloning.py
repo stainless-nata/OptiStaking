@@ -70,7 +70,7 @@ def test_cloning(
 
     # Approve and deposit to the staking contract
     yvdai_starting = yvdai.balanceOf(yvdai_whale)
-    yvdai.approve(new_staking_pool, 2 ** 256 - 1, {"from": yvdai_whale})
+    yvdai.approve(new_staking_pool, 2**256 - 1, {"from": yvdai_whale})
     new_staking_pool.stake(yvdai_amount, {"from": yvdai_whale})
     assert new_staking_pool.balanceOf(yvdai_whale) == yvdai_amount
 

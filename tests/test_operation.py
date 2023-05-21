@@ -20,7 +20,7 @@ def test_normal_deposit(
 ):
     # Approve and deposit to the staking contract
     yvdai_starting = yvdai.balanceOf(yvdai_whale)
-    yvdai.approve(yvdai_pool, 2 ** 256 - 1, {"from": yvdai_whale})
+    yvdai.approve(yvdai_pool, 2**256 - 1, {"from": yvdai_whale})
     yvdai_pool.stake(yvdai_amount, {"from": yvdai_whale})
     assert yvdai_pool.balanceOf(yvdai_whale) == yvdai_amount
 
@@ -88,7 +88,7 @@ def test_insanity(
 ):
     # Approve and deposit to the staking contract
     yvdai_starting = yvdai.balanceOf(yvdai_whale)
-    yvdai.approve(yvdai_pool, 2 ** 256 - 1, {"from": yvdai_whale})
+    yvdai.approve(yvdai_pool, 2**256 - 1, {"from": yvdai_whale})
     yvdai_pool.stake(yvdai_amount, {"from": yvdai_whale})
     assert yvdai_pool.balanceOf(yvdai_whale) == yvdai_amount
 
@@ -195,7 +195,7 @@ def test_sweep_rewards(
 ):
     # Approve and deposit to the staking contract
     yvdai_starting = yvdai.balanceOf(yvdai_whale)
-    yvdai.approve(yvdai_pool, 2 ** 256 - 1, {"from": yvdai_whale})
+    yvdai.approve(yvdai_pool, 2**256 - 1, {"from": yvdai_whale})
     yvdai_pool.stake(yvdai_amount, {"from": yvdai_whale})
     assert yvdai_pool.balanceOf(yvdai_whale) == yvdai_amount
 
@@ -272,7 +272,7 @@ def test_sweep_rewards(
     with brownie.reverts("Staking pool is retired"):
         yvdai_pool.stake(yvdai_amount, {"from": yvdai_whale})
     registry.addStakingPool(yvdai_pool, yvdai, False, {"from": gov})
-    dai.approve(zap, 2 ** 256 - 1, {"from": dai_whale})
+    dai.approve(zap, 2**256 - 1, {"from": dai_whale})
     with brownie.reverts("Staking pool is retired"):
         zap.zapIn(yvdai, dai_amount, {"from": dai_whale})
 
@@ -294,7 +294,7 @@ def test_extend_rewards(
 ):
     # Approve and deposit to the staking contract
     yvdai_starting = yvdai.balanceOf(yvdai_whale)
-    yvdai.approve(yvdai_pool, 2 ** 256 - 1, {"from": yvdai_whale})
+    yvdai.approve(yvdai_pool, 2**256 - 1, {"from": yvdai_whale})
     yvdai_pool.stake(yvdai_amount, {"from": yvdai_whale})
     assert yvdai_pool.balanceOf(yvdai_whale) == yvdai_amount
 
@@ -378,7 +378,7 @@ def test_zap(
 ):
     # Approve and zap into to the staking contract
     dai_starting = dai.balanceOf(dai_whale)
-    dai.approve(zap, 2 ** 256 - 1, {"from": dai_whale})
+    dai.approve(zap, 2**256 - 1, {"from": dai_whale})
 
     # can't deposit into a contract that isn't in our registry
     with brownie.reverts("staking pool doesn't exist"):
@@ -439,7 +439,7 @@ def test_zap(
     assert yvop.balanceOf(dai_whale) > earned
 
     # check that no one else can use stakeFor (even gov!)
-    yvdai.approve(yvdai_pool, 2 ** 256 - 1, {"from": gov})
+    yvdai.approve(yvdai_pool, 2**256 - 1, {"from": gov})
     yvdai.transfer(gov, 100e18, {"from": yvdai_whale})
     with brownie.reverts("Only zap contract"):
         yvdai_pool.stakeFor(gov, 100e18, {"from": gov})

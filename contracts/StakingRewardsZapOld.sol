@@ -8,7 +8,7 @@ import "@openzeppelin_new/contracts/token/ERC20/utils/SafeERC20.sol";
 interface IVault is IERC20 {
     function token() external view returns (address);
 
-    function deposit(uint256, address) external returns (uint256);
+    function deposit() external;
 }
 
 interface IStakingRewards {
@@ -19,7 +19,7 @@ interface IRegistry {
     function stakingPool(address vault) external view returns (address);
 }
 
-contract StakingRewardsZap is Ownable {
+contract StakingRewardsZapOld is Ownable {
     using SafeERC20 for IERC20;
 
     /* ========== STATE VARIABLES ========== */
@@ -62,19 +62,13 @@ contract StakingRewardsZap is Ownable {
         IVault targetVault = IVault(_targetVault);
         IERC20 underlying = IERC20(targetVault.token());
 
-        // transfer to zap and deposit underlying to vault, but first check our approvals and store starting amount
+        // transfer to zap and deposit underlying to vault, but first check our approvals
         _checkAllowance(_targetVault, address(underlying), _underlyingAmount);
-        uint256 beforeAmount = underlying.balanceOf(address(this));
         underlying.transferFrom(msg.sender, address(this), _underlyingAmount);
+        targetVault.deposit();
 
-        // deposit only our underlying amount, make sure deposit worked
-        uint256 toStake = targetVault.deposit(_underlyingAmount, address(this));
-
-        // this shouldn't be reached thanks to vault checks, but leave it in case vault code changes
-        require(
-            underlying.balanceOf(address(this)) == beforeAmount && toStake > 0,
-            "deposit failed"
-        );
+        // read staking contract from registry, then deposit to that staking contract
+        uint256 toStake = targetVault.balanceOf(address(this));
 
         // make sure we have approved the staking pool, as they can be added/updated at any time
         _checkAllowance(_vaultStakingPool, _targetVault, toStake);
