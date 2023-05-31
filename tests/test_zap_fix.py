@@ -2,7 +2,7 @@ import brownie
 from brownie import ZERO_ADDRESS, chain, interface
 import pytest
 
-
+# this shows that, in prod, the current live zap will have dai stuck
 def test_old_live_zap_fails(
     gov,
     yvdai,
@@ -42,6 +42,7 @@ def test_old_live_zap_fails(
     print("Stuck DAI:", stuck_dai / 1e18)
 
 
+# this shows that our new zap, when deployed and used with existing pool contracts, works great
 def test_new_zap_works(
     gov,
     yvdai,
@@ -76,3 +77,4 @@ def test_new_zap_works(
     with brownie.reverts():
         new_zap.zapIn(yvdai, dai_amount, {"from": dai_whale})
     assert dai.balanceOf(dai_whale) == dai_starting
+    assert dai.balanceOf(new_zap) == 0

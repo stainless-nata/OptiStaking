@@ -2,7 +2,7 @@ import brownie
 from brownie import ZERO_ADDRESS, chain, interface
 import pytest
 
-
+# this test asserts that a newly deployed zap with a newly deployed registry works as expected
 def test_normal_deposit(
     gov,
     yvdai,
@@ -17,6 +17,7 @@ def test_normal_deposit(
     zap,
     yvdai_pool,
     yvusdc_pool,
+    dai,
 ):
     # Approve and deposit to the staking contract
     yvdai_starting = yvdai.balanceOf(yvdai_whale)
@@ -66,6 +67,7 @@ def test_normal_deposit(
     # sleep to get past our rewards window
     chain.sleep(86400 * 6)
     yvdai_pool.setRewardsDuration(86400 * 14, {"from": gov})
+    assert dai.balanceOf(zap) == 0
 
 
 def test_insanity(
